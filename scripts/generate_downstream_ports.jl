@@ -21,6 +21,7 @@ Deterministic generator for auxiliary editor, terminal, and AI CLI theme ports:
 14. Codex Desktop App: `codex/penumbra_*.txt`
 15. Claude Code CLI: `claude-code/penumbra_*.json`
 16. Base16 (tinted-theming): `base16/penumbra_*.yaml`
+17. Starship Prompt: `starship/penumbra.toml`
 
 Generates clean, verified configurations based on the solved v2 base and accent palettes.
 """
@@ -1488,6 +1489,78 @@ palette:
 end
 
 # =============================================================================
+# 17. Starship Prompt (starship.toml Palettes)
+# =============================================================================
+
+function _starship_palette_block(key::String, mode::Symbol, tier::Symbol, n_accents::Int)
+    is_dark = mode == :dark
+    base = BASE_TONES[tier]
+    acc = ACCENTS[mode][tier][n_accents]
+
+    fg0 = is_dark ? base["sun"] : base["shade"]
+    fg1 = base["sky"]
+    bg0 = is_dark ? base["shade"] : base["sun"]
+    bg1 = is_dark ? base["shade+"] : base["sun-"]
+    bg2 = is_dark ? base["shade"] : base["sun"]
+    bg3 = is_dark ? base["sky-"] : base["sky+"]
+
+    c_red = acc["red"]
+    c_yellow = acc["yellow"]
+    c_green = acc["green"]
+    c_aqua = acc["cyan"]
+    c_blue = acc["blue"]
+    c_orange = haskey(acc, "orange") ? acc["orange"] : acc["yellow"]
+    c_purple = haskey(acc, "purple") ? acc["purple"] : acc["magenta"]
+    c_magenta = haskey(acc, "magenta") ? acc["magenta"] : c_purple
+
+    return """[palettes."$key"]
+color_fg0 = "#$fg0"
+color_fg1 = "#$fg1"
+color_bg0 = "#$bg0"
+color_bg1 = "#$bg1"
+color_bg2 = "#$bg2"
+color_bg3 = "#$bg3"
+color_red = "#$c_red"
+color_orange = "#$c_orange"
+color_yellow = "#$c_yellow"
+color_green = "#$c_green"
+color_aqua = "#$c_aqua"
+color_blue = "#$c_blue"
+color_purple = "#$c_purple"
+color_magenta = "#$c_magenta" """
+end
+
+function generate_starship_palettes(; target_path::String, dry_run::Bool=true)
+    configs = [
+        (:dark, :balanced, "penumbra_dark"),
+        (:dark, :contrast_plus, "penumbra_dark+"),
+        (:dark, :contrast_plus_plus, "penumbra_dark++"),
+        (:light, :balanced, "penumbra_light"),
+    ]
+
+    blocks = String[]
+    for (mode, tier, base_key) in configs
+        # The unsuffixed palette is the canonical UI palette (N = 8); the
+        # suffixed ones offer the terminal-style alternatives.
+        push!(blocks, _starship_palette_block(base_key, mode, tier, 8))
+        for n in (6, 7, 8)
+            push!(blocks, _starship_palette_block("$(base_key)_$(n)", mode, tier, n))
+        end
+    end
+
+    content = """# Penumbra v2 -- Starship Prompt Palettes (6-, 7-, and 8-colour opponent schemes)
+# Compatible with Starship's `color_*` preset convention (e.g. `gruvbox-rainbow`).
+# Copy the desired [palettes."..."] section(s) into ~/.config/starship.toml
+# and set `palette = "penumbra_dark"` (or `penumbra_dark+`, `penumbra_dark+_6`, `penumbra_dark+_7`, `penumbra_dark+_8`, etc.).
+
+palette = "penumbra_dark"
+
+$(join(rstrip.(blocks), "\n\n"))
+"""
+    _write_port(target_path, content, "Starship Prompt palettes"; dry_run=dry_run)
+end
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -1562,6 +1635,10 @@ function main(; dry_run::Bool=true)
     # 10. Master GIMP Palette
     println("\n[GIMP Master Palette]")
     generate_gpl_all(target_path=joinpath(@__DIR__, "..", "gpl", "penumbra.gpl"); dry_run=dry_run)
+
+    # 17. Starship Prompt
+    println("\n[Starship Prompt]")
+    generate_starship_palettes(target_path=joinpath(@__DIR__, "..", "starship", "penumbra.toml"); dry_run=dry_run)
 
     println("\n" * "="^80)
 end
